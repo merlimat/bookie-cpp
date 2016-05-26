@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project (bookie-cpp)
 
-set(CMAKE_CXX_FLAGS "-std=c++14 -g0 -O3 -march=native")
+set(CMAKE_CXX_FLAGS "-std=c++14 -g0 -O3 -march=native -pthread")
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/)
 
 find_package(Folly REQUIRED)
@@ -52,6 +52,11 @@ target_link_libraries(bookie
   ${Zookeeper_LIBRARY}
   ${WANGLE_LIBRARY_PATH}
   ${JEMALLOC_LIBRARY_PATH}
-  $<$<NOT:$<CXX_COMPILER_ID:Clang>>:latomic>)
+)
+
+if (NOT APPLE)
+    target_link_libraries(bookie rt latomic)
+endif()
+
 
 
