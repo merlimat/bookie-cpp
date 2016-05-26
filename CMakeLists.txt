@@ -55,7 +55,7 @@ target_link_libraries(bookie
 )
 
 if (NOT APPLE)
-    target_link_libraries(bookie rt latomic)
+    target_link_libraries(bookie rt atomic)
 endif()
 
 
