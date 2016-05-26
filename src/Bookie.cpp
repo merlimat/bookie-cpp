@@ -2,6 +2,7 @@
 #include "Logging.h"
 
 #include <folly/io/async/EventBaseManager.h>
+#include <folly/Bits.h>
 
 DECLARE_LOG_OBJECT();
 
@@ -44,8 +45,8 @@ Future<Unit> Bookie::addEntry(int64_t ledgerId, int64_t entryId, IOBufPtr data) 
     };
 
     Key key;
-    key.ledgerId = htonll(ledgerId);
-    key.entryId = htonll(entryId);
+    key.ledgerId = Endian::big(ledgerId);
+    key.entryId = Endian::big(entryId);
 
     rocksdb::Slice keySlice(key.data, sizeof(key));
     rocksdb::Slice valueSlice((const char*) data->data(), data->length());
