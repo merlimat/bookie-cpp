@@ -5,7 +5,7 @@ set(CMAKE_CXX_FLAGS "-std=c++14 -g0 -O3 -march=native -pthread")
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/)
 
 find_package(Folly REQUIRED)
-find_package(Boost REQUIRED COMPONENTS program_options)
+find_package(Boost REQUIRED COMPONENTS program_options filesystem regex)
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 find_library(GLOG_LIBRARY_PATH glog)
@@ -16,6 +16,9 @@ find_library(LOG4CXX_LIBRARY_PATH log4cxx)
 find_library(ROCKSDB_LIBRARY_PATH rocksdb)
 find_library(WANGLE_LIBRARY_PATH wangle)
 find_library(JEMALLOC_LIBRARY_PATH jemalloc)
+find_library(Z_LIBRARY_PATH z)
+find_library(LZ4_LIBRARY_PATH lz4)
+find_library(BZ2_LIBRARY_PATH bz2)
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/..
@@ -52,11 +55,12 @@ target_link_libraries(bookie
   ${Zookeeper_LIBRARY}
   ${WANGLE_LIBRARY_PATH}
   ${JEMALLOC_LIBRARY_PATH}
+  ${Z_LIBRARY_PATH}
+  ${LZ4_LIBRARY_PATH}
+  ${BZ2_LIBRARY_PATH}
 )
 
 if (NOT APPLE)
     target_link_libraries(bookie rt atomic)
 endif()
-
-
 
