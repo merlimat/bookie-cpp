@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project (bookie-cpp)
 
-set(CMAKE_CXX_FLAGS "-std=c++14 -g0 -O3 -march=native -pthread")
+set(CMAKE_CXX_FLAGS "-std=c++14 -g0 -O3 -march=core2 -pthread")
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/)
 
 find_package(Folly REQUIRED)
