@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project (bookie-cpp)
 
-set(CMAKE_CXX_FLAGS "-std=c++14 -g0 -O3 -march=core2 -pthread")
+set(CMAKE_CXX_FLAGS "-std=c++14 -g -O3 -march=core2")
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/)
 
 find_package(Folly REQUIRED)
@@ -43,16 +43,14 @@ set(BOOKIE_SOURCES
 
 add_executable(bookie ${BOOKIE_SOURCES})
 
-target_link_libraries(bookie
+set(COMMON_LIBS 
   ${FOLLY_LIBRARIES}
   ${LOG4CXX_LIBRARIES}
   ${Boost_LIBRARIES}
   ${OPENSSL_LIBRARIES}
   ${GLOG_LIBRARY_PATH}
   ${GFLAGS_LIBRARY_PATH}
-  ${ROCKSDB_LIBRARY_PATH}
   ${LOG4CXX_LIBRARY_PATH}
-  ${Zookeeper_LIBRARY}
   ${WANGLE_LIBRARY_PATH}
   ${JEMALLOC_LIBRARY_PATH}
   ${Z_LIBRARY_PATH}
@@ -61,6 +59,22 @@ target_link_libraries(bookie
 )
 
 if (NOT APPLE)
-    target_link_libraries(bookie rt atomic)
+    set(COMMON_LIBS ${COMMON_LIBS} rt atomic)
 endif()
 
+target_link_libraries(bookie
+  ${COMMON_LIBS}
+  ${ROCKSDB_LIBRARY_PATH}
+  ${Zookeeper_LIBRARY}
+)
+
+# Test tool
+
+set(PERF_CLIENT_SOURCES
+  src/perfClient.cpp
+  src/Logging.cpp
+  src/Metrics.cpp
+)
+
+add_executable(perfClient ${PERF_CLIENT_SOURCES})
+target_link_libraries(perfClient ${COMMON_LIBS})
