@@ -29,6 +29,7 @@ void Metric::updateStats(seconds statsPeriod) {
     LatencyHistogram aggregated(BucketSize, MinValue, MaxValue);
     for (LatencyHistogram& hist : histogram_.accessAllThreads()) {
         aggregated.merge(hist);
+        hist.clear();
     }
 
     uint64_t count = 0;
