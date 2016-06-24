@@ -4,6 +4,8 @@
 #include "Metrics.h"
 #include "BookieCodecV2.h"
 #include "RateLimiter.h"
+
+#include <algorithm>
 #include <iostream>
 
 #include <wangle/bootstrap/ClientBootstrap.h>
@@ -35,7 +37,6 @@ public:
             msgSize_(msgSize),
             addEntryMetric_(addEntryMetric),
             thread_() {
-        LOG_INFO("Created task");
     }
 
     void start() {
@@ -46,6 +47,7 @@ public:
         std::string payload;
         payload.resize(msgSize_);
 
+        auto pipeline = pipeline_.get();
         EventBase* eventBase = pipeline_->getTransport()->getEventBase();
 
         while (true) {
@@ -53,23 +55,33 @@ public:
 
             int64_t entryId = entryIdGenerator++;
 
-            eventBase->runInEventBaseThread([&]() {
+            eventBase->runInEventBaseThread([entryId, &ledgerId, &payload, &pipeline, this]() {
                 Request request {2, BookieOperation::AddEntry, ledgerId, entryId, 0, IOBuf::wrapBuffer(payload.c_str(),
                             payload.length())};
-                pipeline_->write(std::move(request));
+                LOG_DEBUG("Sending request " << request);
+                pipeline->write(std::move(request));
+
+                pendingRequests_.insert( {entryId, std::move(addEntryMetric_->startTimer())});
             });
         }
     }
 
     virtual void transportActive(Context* ctx) override {
-        LOG_INFO("Transport active");
         ctx->fireTransportActive();
         ctx->getTransport()->getPeerAddress(&bookieAddress_);
         thread_ = std::make_unique<std::thread>(std::bind(&AddEntryTask::start, this));
     }
 
     virtual void read(Context* ctx, Response response) override {
-        LOG_INFO("Received response: " << response);
+        LOG_DEBUG("Received response: " << response);
+        if (UNLIKELY(response.errorCode != BookieError::OK)) {
+            LOG_ERROR("Received error response: " << response.errorCode);
+            std::exit(-1);
+        }
+
+        auto it = pendingRequests_.find(response.entryId);
+        it->second.completed();
+        pendingRequests_.erase(it);
     }
 
     virtual void readEOF(Context* ctx) override {
@@ -85,7 +97,7 @@ private:
     MetricPtr addEntryMetric_;
     std::unique_ptr<std::thread> thread_;
 
-    std::unordered_map<int64_t, TimePoint> pendingRequests_;
+    std::unordered_map<int64_t, Timer> pendingRequests_;
 
     static std::atomic<int64_t> ledgerIdGenerator_;
 };
@@ -148,14 +160,14 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    MetricsManager metricsManager(seconds(2));
+    seconds statsReportingPeriod(10);
+
+    MetricsManager metricsManager(statsReportingPeriod);
     MetricPtr addEntryMetric = metricsManager.createMetric("add-entry-metric");
 
     SocketAddress bookieAddress;
     bookieAddress.setFromHostPort(args.bookieAddress);
     LOG_INFO("Bookie address: " << bookieAddress);
-
-//    std::vector<std::unique_ptr<AddEntryTask>> tasks;
 
     double perConnectionRate = args.rate / args.numberOfConnections;
 
@@ -164,14 +176,18 @@ int main(int argc, char** argv) {
     client.pipelineFactory(
             std::make_shared<BookieClientPipelineFactory>(perConnectionRate, args.msgSize, addEntryMetric));
 
+    std::vector<Future<BookieClientPipeline*>> connectFutures;
     for (int i = 0; i < args.numberOfConnections; i++) {
-        client.connect(bookieAddress).get();
-//        tasks.push_back(
-//                std::make_unique<AddEntryTask>(&client, bookieAddress, perConnectionRate, args.msgSize,
-//                        addEntryMetric));
+        auto future = client.connect(bookieAddress);
+        connectFutures.push_back(std::move(future));
+    }
+
+    for (auto& future : connectFutures) {
+        future.get();
     }
 
     while (true) {
-        std::this_thread::sleep_for(seconds(1));
+        std::this_thread::sleep_for(statsReportingPeriod);
+        LOG_INFO("Stats : " << metricsManager.getJsonStats());
     }
 }
