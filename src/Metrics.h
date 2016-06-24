@@ -48,7 +48,7 @@ public:
 private:
     dynamic getStats();
 
-    void addLatencySample(microseconds latency);
+    void addLatencySample(Clock::duration latency);
     void updateStats(seconds statsPeriod);
 
     const std::string name_;

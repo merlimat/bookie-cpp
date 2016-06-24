@@ -6,7 +6,7 @@ inline Timer::Timer(Metric* metric) :
 }
 
 inline void Timer::completed() {
-    metric_->addLatencySample(microseconds(Clock::now() - startTime_));
+    metric_->addLatencySample(Clock::now() - startTime_);
 }
 
 inline const std::string& Metric::name() const {
@@ -17,6 +17,6 @@ inline Timer Metric::startTimer() {
     return Timer(this);
 }
 
-inline void Metric::addLatencySample(microseconds latency) {
-    histogram_->addValue(latency.count());
+inline void Metric::addLatencySample(Clock::duration latency) {
+    histogram_->addValue(duration_cast<microseconds>(latency).count());
 }
