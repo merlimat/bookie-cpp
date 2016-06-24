@@ -126,6 +126,8 @@ void BookieClientCodecV2::read(Context* ctx, IOBufPtr buf) {
     }
 
     io::Cursor reader { buf.get() };
+
+    LOG_DEBUG("Received response: len=" << reader.totalLength());
     if (reader.totalLength() < sizeof(int32_t)) {
         // Short request
         ctx->fireClose();
@@ -139,15 +141,13 @@ void BookieClientCodecV2::read(Context* ctx, IOBufPtr buf) {
 
     switch (response.opCode) {
     case BookieOperation::AddEntry:
-        response.errorCode = (BookieError) reader.readBE<int64_t>();
+        response.errorCode = (BookieError) reader.readBE<int32_t>();
         response.ledgerId = reader.readBE<int64_t>();
         response.entryId = reader.readBE<int64_t>();
-
-        reader.clone(response.data, reader.totalLength());
         break;
 
     case BookieOperation::ReadEntry: {
-        response.errorCode = (BookieError) reader.readBE<int64_t>();
+        response.errorCode = (BookieError) reader.readBE<int32_t>();
         response.ledgerId = reader.readBE<int64_t>();
         response.entryId = reader.readBE<int64_t>();
         // TODO
