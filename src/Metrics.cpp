@@ -56,10 +56,9 @@ MetricsManager::MetricsManager(seconds statsPeriod) :
         eventBase_(),
         statsUpdateThread_([=] {
             setThreadName("bookie-stats-updater");
+            eventBase_.runAfterDelay(std::bind(&MetricsManager::updateStats, this), milliseconds(statsPeriod_).count());
             eventBase_.loopForever();
         }) {
-
-    eventBase_.runAfterDelay(std::bind(&MetricsManager::updateStats, this), milliseconds(statsPeriod_).count());
 }
 
 MetricsManager::~MetricsManager() {

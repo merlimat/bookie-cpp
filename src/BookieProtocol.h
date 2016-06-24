@@ -101,6 +101,8 @@ struct BookieConstant {
     static const int64_t InvalidLedgerId = -1L;
     static const int64_t InvalidEntryId = -1L;
     static const uint32_t MasterKeyLength = 20;
+
+    static constexpr uint32_t MaxFrameSize = 5 * 1024 * 1024;
 };
 
 typedef std::unique_ptr<IOBuf> IOBufPtr;

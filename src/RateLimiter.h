@@ -2,18 +2,20 @@
 
 #include <chrono>
 #include <thread>
+#include <cassert>
+#include <algorithm>
 
-class JournalRateLimiter {
+class RateLimiter {
  public:
-    JournalRateLimiter(double rate);
+    RateLimiter(double rate);
 
     void aquire();
 
     void aquire(int permits);
 
  private:
-    JournalRateLimiter(const JournalRateLimiter&);
-    JournalRateLimiter& operator=(const JournalRateLimiter&);
+    RateLimiter(const RateLimiter&);
+    RateLimiter& operator=(const RateLimiter&);
     typedef std::chrono::high_resolution_clock Clock;
     Clock::duration interval_;
 
@@ -22,7 +24,7 @@ class JournalRateLimiter {
     Clock::time_point nextFree_;
 };
 
-JournalRateLimiter::JournalRateLimiter(double rate)
+RateLimiter::RateLimiter(double rate)
         : interval_(std::chrono::microseconds((long)(1e6 / rate))),
           storedPermits_(0.0),
           maxPermits_(rate),
@@ -30,11 +32,11 @@ JournalRateLimiter::JournalRateLimiter(double rate)
     assert(rate < 1e6 && "Exceeded maximum rate");
 }
 
-void JournalRateLimiter::aquire() {
+void RateLimiter::aquire() {
     aquire(1);
 }
 
-void JournalRateLimiter::aquire(int permits) {
+void RateLimiter::aquire(int permits) {
     Clock::time_point now = Clock::now();
 
     if (now > nextFree_) {

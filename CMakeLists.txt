@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project (bookie-cpp)
 
-set(CMAKE_CXX_FLAGS "-std=c++14 -g -O3 -march=core2")
+set(CMAKE_CXX_FLAGS "-std=c++14 -g3 -O0 -march=core2")
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/)
 
 find_package(Folly REQUIRED)
@@ -74,6 +74,8 @@ set(PERF_CLIENT_SOURCES
   src/perfClient.cpp
   src/Logging.cpp
   src/Metrics.cpp
+  src/BookieCodecV2.cpp
+  src/BookieProtocol.cpp
 )
 
 add_executable(perfClient ${PERF_CLIENT_SOURCES})

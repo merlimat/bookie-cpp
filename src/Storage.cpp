@@ -1,13 +1,13 @@
-#include "Storage.h"
+
 #include "Logging.h"
+#include "RateLimiter.h"
+#include "Storage.h"
 
 #include <rocksdb/table.h>
 #include <rocksdb/filter_policy.h>
 #include <rocksdb/cache.h>
 #include <rocksdb/slice_transform.h>
 #include <folly/ThreadName.h>
-
-#include "JournalRateLimiter.h"
 
 using namespace rocksdb;
 
@@ -87,7 +87,7 @@ void Storage::runJournal() {
 
     std::vector<PromisePtr> entriesToSync;
 
-    JournalRateLimiter limiter(5000);
+    ::RateLimiter limiter(5000);
     Unit unit;
 
     while (true) {

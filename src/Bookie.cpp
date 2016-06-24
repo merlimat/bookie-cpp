@@ -2,6 +2,7 @@
 #include "Logging.h"
 
 #include <folly/io/async/EventBaseManager.h>
+#include <wangle/channel/EventBaseHandler.h>
 #include <folly/Bits.h>
 
 DECLARE_LOG_OBJECT();
