@@ -25,6 +25,7 @@ BookieConfig::BookieConfig() :
     ("dataDir,d", po::value<std::string>(&dataDirectory_)->default_value("./data"), "Location where to store data") //
     ("walDir,w", po::value<std::string>(&walDirectory_)->default_value("./wal"),
             "Location where to put RocksDB Write-ahead-log") //
+    ("fsyncWal,s", po::value<bool>(&fsyncWal_)->default_value(true), "Fsync the WAL before acking the entry") //
             //
             ;
 }

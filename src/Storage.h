@@ -29,6 +29,7 @@ private:
 
     MPMCQueue<PromisePtr> journalQueue_;
 
+    const bool fsyncWal_;
     std::thread journalThread_;
 };
 

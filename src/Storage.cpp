@@ -30,7 +30,11 @@ Storage::Storage(const BookieConfig& conf) :
         db_(nullptr),
         writeOptions_(),
         journalQueue_(10000),
-        journalThread_(std::bind(&Storage::runJournal, this)) {
+        fsyncWal_(conf.fsyncWal()) {
+    if (fsyncWal_) {
+        journalThread_ = std::thread(std::bind(&Storage::runJournal, this));
+    }
+
     Options options;
     options.create_if_missing = true;
     options.write_buffer_size = 1_GB;
@@ -75,20 +79,26 @@ Storage::Storage(const BookieConfig& conf) :
 }
 
 Storage::~Storage() {
-    // Write a null promise to make the journal thread to exit
-    journalQueue_.blockingWrite(nullptr);
-    journalThread_.join();
+    if (fsyncWal_) {
+        // Write a null promise to make the journal thread to exit
+        journalQueue_.blockingWrite(nullptr);
+        journalThread_.join();
+    }
     delete db_;
 }
 
 Future<Unit> Storage::put(const Slice& key, const Slice& value) {
     Status res = db_->Put(writeOptions_, nullptr, key, value);
     if (res.ok()) {
-        PromisePtr promise = make_unique<Promise<Unit>>();
-        Future<Unit> future = promise->getFuture();
-        journalQueue_.write(std::move(promise));
+        if (fsyncWal_) {
+            PromisePtr promise = make_unique<Promise<Unit>>();
+            Future<Unit> future = promise->getFuture();
+            journalQueue_.write(std::move(promise));
 
-        return future;
+            return future;
+        } else {
+            return makeFuture(Unit());
+        }
     } else {
         LOG_ERROR("Failed to write to db. res: " << res.code());
         return makeFuture<Unit>(std::runtime_error("Failed to write to db"));

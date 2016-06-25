@@ -35,6 +35,10 @@ public:
         return walDirectory_;
     }
 
+    bool fsyncWal() const {
+        return fsyncWal_;
+    }
+
 private:
     std::string zkServers_;
     int zkSessionTimeout_;
@@ -44,6 +48,7 @@ private:
 
     std::string dataDirectory_;
     std::string walDirectory_;
+    bool fsyncWal_;
 
     po::options_description options_;
 };
