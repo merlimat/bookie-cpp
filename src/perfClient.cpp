@@ -176,7 +176,7 @@ int main(int argc, char** argv) {
     double perConnectionRate = args.rate / args.numberOfConnections;
 
     ClientBootstrap<BookieClientPipeline> client;
-    client.group(std::make_shared<wangle::IOThreadPoolExecutor>(16));
+    client.group(std::make_shared<wangle::IOThreadPoolExecutor>(std::thread::hardware_concurrency()));
     client.pipelineFactory(
             std::make_shared<BookieClientPipelineFactory>(perConnectionRate, args.msgSize, addEntryMetric));
 
