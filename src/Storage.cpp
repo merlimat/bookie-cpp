@@ -1,8 +1,8 @@
-
 #include "Logging.h"
 #include "RateLimiter.h"
 #include "Storage.h"
 
+#include <chrono>
 #include <rocksdb/table.h>
 #include <rocksdb/filter_policy.h>
 #include <rocksdb/cache.h>
@@ -10,8 +10,21 @@
 #include <folly/ThreadName.h>
 
 using namespace rocksdb;
+using namespace std::chrono;
 
 DECLARE_LOG_OBJECT();
+
+constexpr uint64_t operator ""_KB(uint64_t kilobytes) {
+    return kilobytes * 1024;
+}
+
+constexpr uint64_t operator ""_MB(uint64_t megabytes) {
+    return megabytes * 1024 * 1024;
+}
+
+constexpr uint64_t operator ""_GB(uint64_t gigabytes) {
+    return gigabytes * 1024 * 1024 * 1024;
+}
 
 Storage::Storage(const BookieConfig& conf) :
         db_(nullptr),
@@ -20,32 +33,32 @@ Storage::Storage(const BookieConfig& conf) :
         journalThread_(std::bind(&Storage::runJournal, this)) {
     Options options;
     options.create_if_missing = true;
-    options.write_buffer_size = 1024 * 1024 * 1024L;
+    options.write_buffer_size = 1_GB;
     options.max_write_buffer_number = 4;
     options.max_background_compactions = 16;
     options.max_background_flushes = 4;
     options.IncreaseParallelism(std::thread::hardware_concurrency());
     options.max_open_files = -1;
     options.max_file_opening_threads = 16;
-    options.target_file_size_base = 64 * 1024 * 1024L;
-    options.max_bytes_for_level_base = 256 * 1024 * 1024L;
-    options.delete_obsolete_files_period_micros = 3600 * 1000 * 1000L;
+    options.target_file_size_base = 1_GB;
+    options.max_bytes_for_level_base = 10_GB;
+    options.delete_obsolete_files_period_micros = duration_cast<microseconds>(hours(1)).count();
     options.level_compaction_dynamic_level_bytes = true;
 
     // Keys are always 16 bytes (ledgerId, entryId)
     options.prefix_extractor.reset(NewFixedPrefixTransform(8));
 
-    options.log_file_time_to_roll = 3600 * 24;
+    options.log_file_time_to_roll = duration_cast<seconds>(hours(24)).count();
     options.keep_log_file_num = 30;
     options.stats_dump_period_sec = 60;
 
     options.wal_dir = conf.walDirectory();
 
     BlockBasedTableOptions table_options;
-    table_options.block_size = 64 * 1024;
+    table_options.block_size = 256_KB;
     table_options.format_version = 2;
     table_options.checksum = kxxHash;
-    table_options.block_cache = NewLRUCache(8L * 1024 * 1024 * 1024, 8);
+    table_options.block_cache = NewLRUCache(8_GB, 8);
     table_options.cache_index_and_filter_blocks = true;
     table_options.filter_policy.reset(NewBloomFilterPolicy(10, false));
     options.table_factory.reset(NewBlockBasedTableFactory(table_options));
@@ -87,7 +100,7 @@ void Storage::runJournal() {
 
     std::vector<PromisePtr> entriesToSync;
 
-    ::RateLimiter limiter(5000);
+    ::RateLimiter limiter(10000);
     Unit unit;
 
     while (true) {
