@@ -14,15 +14,15 @@ using namespace std::chrono;
 
 DECLARE_LOG_OBJECT();
 
-constexpr uint64_t operator ""_KB(uint64_t kilobytes) {
+constexpr unsigned long long int operator ""_KB(unsigned long long int kilobytes) {
     return kilobytes * 1024;
 }
 
-constexpr uint64_t operator ""_MB(uint64_t megabytes) {
+constexpr unsigned long long int operator ""_MB(unsigned long long int megabytes) {
     return megabytes * 1024 * 1024;
 }
 
-constexpr uint64_t operator ""_GB(uint64_t gigabytes) {
+constexpr unsigned long long int operator ""_GB(unsigned long long int gigabytes) {
     return gigabytes * 1024 * 1024 * 1024;
 }
 
