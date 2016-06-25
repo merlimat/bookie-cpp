@@ -90,7 +90,7 @@ void MetricsManager::updateStats() {
     }
 }
 
-std::string MetricsManager::getJsonStats() {
+std::string MetricsManager::getJsonStats(bool formatJson) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     dynamic stats = dynamic::object();
@@ -99,7 +99,7 @@ std::string MetricsManager::getJsonStats() {
     }
 
     json::serialization_opts opts;
-    opts.pretty_formatting = true;
+    opts.pretty_formatting = formatJson;
     opts.sort_keys = true;
     return json::serialize(stats, opts);
 }

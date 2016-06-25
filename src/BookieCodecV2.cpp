@@ -86,12 +86,16 @@ void BookieServerCodecV2::read(Context* ctx, IOBufPtr buf) {
 Future<Unit> BookieServerCodecV2::write(Context* ctx, Response response) {
     LOG_DEBUG("Serializing response: " << response);
 
-    const int headerSize = 24;
-    IOBufPtr buf = IOBuf::create(headerSize);
-    buf->append(headerSize);
+    const int headerSize = 4 + 24;
+    const int frameSize = headerSize /* + sizeof(data) */;
+    const int bufferSize = frameSize + 4;
+    IOBufPtr buf = IOBuf::create(bufferSize);
+    buf->append(bufferSize);
 
     PacketHeader pktHeader { response.protocolVersion, response.opCode, 0 };
     io::RWPrivateCursor writer(buf.get());
+
+    writer.writeBE<int32_t>(frameSize);
     writer.writeBE<int32_t>(pktHeader.toInt());
 
     switch (response.opCode) {
@@ -166,11 +170,16 @@ Future<Unit> BookieClientCodecV2::write(Context* ctx, Request request) {
     LOG_DEBUG("Serializing request: " << request);
 
     constexpr int headerSize = sizeof(int32_t) + BookieConstant::MasterKeyLength + 2 * sizeof(int64_t);
-    IOBufPtr buf = IOBuf::create(headerSize);
-    buf->append(headerSize);
+    const int frameSize = headerSize + request.data->length();
+    const int bufferSize = headerSize + 4;
+
+    IOBufPtr buffer = IOBuf::create(bufferSize);
+    buffer->append(bufferSize);
 
     PacketHeader pktHeader { request.protocolVersion, request.opCode, request.flags };
-    io::RWPrivateCursor writer(buf.get());
+    io::RWPrivateCursor writer(buffer.get());
+
+    writer.writeBE<int32_t>(frameSize);
     writer.writeBE<int32_t>(pktHeader.toInt());
 
     switch (request.opCode) {
@@ -190,6 +199,6 @@ Future<Unit> BookieClientCodecV2::write(Context* ctx, Request request) {
         break;
     }
 
-    return ctx->fireWrite(std::move(buf));
+    return ctx->fireWrite(std::move(buffer));
 }
 

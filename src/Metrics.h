@@ -71,7 +71,7 @@ public:
 
     MetricPtr createMetric(const std::string& name);
 
-    std::string getJsonStats();
+    std::string getJsonStats(bool formatJson = true);
 
 private:
     void updateStats();

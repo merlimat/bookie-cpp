@@ -24,6 +24,8 @@ struct Arguments {
     double rate;
     int msgSize;
     int numberOfConnections;
+    int statsReportingRateSeconds;
+    bool formatStatsJson;
 };
 
 typedef Pipeline<IOBufQueue&, Request> BookieClientPipeline;
@@ -45,7 +47,7 @@ public:
         int64_t entryIdGenerator = 0;
 
         std::string payload;
-        payload.resize(msgSize_);
+        payload.resize(msgSize_, 'X');
 
         auto pipeline = pipeline_.get();
         EventBase* eventBase = pipeline_->getTransport()->getEventBase();
@@ -121,7 +123,6 @@ public:
         auto pipeline = BookieClientPipeline::create();
         pipeline->addBack(AsyncSocketHandler(sock));
         pipeline->addBack(LengthFieldBasedFrameDecoder(4, BookieConstant::MaxFrameSize));
-        pipeline->addBack(LengthFieldPrepender());
         pipeline->addBack(BookieClientCodecV2());
         pipeline->addBack(std::make_shared<AddEntryTask>(pipeline, perConnectionRate_, msgSize_, addEntryMetric_));
         pipeline->finalize();
@@ -142,6 +143,9 @@ int main(int argc, char** argv) {
     ("rate,r", po::value<double>(&args.rate)->default_value(100), "Add entry rate") //
     ("msg-size,s", po::value<int>(&args.msgSize)->default_value(1024), "Message size") //
     ("num-connections,c", po::value<int>(&args.numberOfConnections)->default_value(16), "Number of connections") //
+    ("format-stats", po::value<bool>(&args.formatStatsJson)->default_value(true), "Format stats JSON output") //
+    ("stats-reporting", po::value<int>(&args.statsReportingRateSeconds)->default_value(10),
+            "Interval to report latency stats in seconds") //
             ;
 
     po::variables_map map;
@@ -160,7 +164,7 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    seconds statsReportingPeriod(10);
+    seconds statsReportingPeriod(args.statsReportingRateSeconds);
 
     MetricsManager metricsManager(statsReportingPeriod);
     MetricPtr addEntryMetric = metricsManager.createMetric("add-entry-metric");
@@ -188,6 +192,6 @@ int main(int argc, char** argv) {
 
     while (true) {
         std::this_thread::sleep_for(statsReportingPeriod);
-        LOG_INFO("Stats : " << metricsManager.getJsonStats());
+        LOG_INFO("Stats : " << metricsManager.getJsonStats(args.formatStatsJson));
     }
 }
