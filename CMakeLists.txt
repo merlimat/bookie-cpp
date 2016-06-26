@@ -38,6 +38,7 @@ set(BOOKIE_SOURCES
   src/Logging.cpp
   src/Storage.cpp
   src/ZooKeeper.cpp
+  src/Metrics.cpp
   src/main.cpp
 )
 

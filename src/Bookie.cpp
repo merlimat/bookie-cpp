@@ -9,9 +9,10 @@ DECLARE_LOG_OBJECT();
 
 Bookie::Bookie(const BookieConfig& conf) :
         conf_(conf),
-        zk_(conf.zkServers(), std::chrono::milliseconds(conf.zkSessionTimeout())),
+        metricsManager_(conf.statsReportingInterval()),
+        zk_(conf.zkServers(), milliseconds(conf.zkSessionTimeout())),
         bookieRegistration_(&zk_, conf),
-        storage_(conf) {
+        storage_(conf, metricsManager_) {
     server_.childPipeline(std::make_shared<BookiePipelineFactory>(*this));
 }
 
@@ -33,7 +34,7 @@ void Bookie::waitForStop() {
 }
 
 BookieHandler Bookie::newHandler() {
-    return BookieHandler(*this);
+    return BookieHandler(*this, metricsManager_);
 }
 
 Future<Unit> Bookie::addEntry(int64_t ledgerId, int64_t entryId, IOBufPtr data) {

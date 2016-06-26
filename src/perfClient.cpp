@@ -192,6 +192,6 @@ int main(int argc, char** argv) {
 
     while (true) {
         std::this_thread::sleep_for(statsReportingPeriod);
-        LOG_INFO("Stats : " << metricsManager.getJsonStats(args.formatStatsJson));
+//        LOG_INFO("Stats : " << metricsManager.getJsonStats(args.formatStatsJson));
     }
 }

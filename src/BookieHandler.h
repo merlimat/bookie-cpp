@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BookieProtocol.h"
+#include "Metrics.h"
 
 #include <folly/SocketAddress.h>
 #include <wangle/channel/Handler.h>
@@ -12,7 +13,7 @@ class Bookie;
 
 class BookieHandler: public HandlerAdapter<Request, Response> {
 public:
-    BookieHandler(Bookie& bookie);
+    BookieHandler(Bookie& bookie, MetricsManager& metricsManager);
 
     virtual void transportActive(Context* ctx) override;
 
@@ -26,4 +27,6 @@ private:
 
     Bookie& bookie_;
     SocketAddress peerAddress_;
+
+    MetricPtr addEntryLatency_;
 };

@@ -8,13 +8,14 @@
 #include <thread>
 
 #include "BookieConfig.h"
+#include "Metrics.h"
 
 using namespace folly;
 using rocksdb::Slice;
 
 class Storage {
 public:
-    Storage(const BookieConfig& conf);
+    Storage(const BookieConfig& conf, MetricsManager& metricsManager);
     ~Storage();
 
     Future<Unit> put(const Slice& key, const Slice& value);
@@ -31,5 +32,9 @@ private:
 
     const bool fsyncWal_;
     std::thread journalThread_;
+
+    MetricPtr rocksDbPutLatency_;
+    MetricPtr walQueueAddLatency_;
+    MetricPtr walSyncLatency_;
 };
 

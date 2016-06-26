@@ -26,11 +26,14 @@ constexpr unsigned long long int operator ""_GB(unsigned long long int gigabytes
     return gigabytes * 1024 * 1024 * 1024;
 }
 
-Storage::Storage(const BookieConfig& conf) :
+Storage::Storage(const BookieConfig& conf, MetricsManager& metricsManager) :
         db_(nullptr),
         writeOptions_(),
         journalQueue_(10000),
-        fsyncWal_(conf.fsyncWal()) {
+        fsyncWal_(conf.fsyncWal()),
+        rocksDbPutLatency_(metricsManager.createMetric("rocksDbPut")),
+        walQueueAddLatency_(metricsManager.createMetric("walQueueAdd")),
+        walSyncLatency_(metricsManager.createMetric("walSync")) {
     if (fsyncWal_) {
         journalThread_ = std::thread(std::bind(&Storage::runJournal, this));
     }
@@ -88,13 +91,18 @@ Storage::~Storage() {
 }
 
 Future<Unit> Storage::put(const Slice& key, const Slice& value) {
+    Timer rocksDbPutTimer = rocksDbPutLatency_->startTimer();
     Status res = db_->Put(writeOptions_, nullptr, key, value);
     if (res.ok()) {
+
+        rocksDbPutTimer.completed();
         if (fsyncWal_) {
             PromisePtr promise = make_unique<Promise<Unit>>();
             Future<Unit> future = promise->getFuture();
-            journalQueue_.write(std::move(promise));
 
+            Timer walQueueAddTimer = walQueueAddLatency_->startTimer();
+            journalQueue_.write(std::move(promise));
+            walQueueAddTimer.completed();
             return future;
         } else {
             return makeFuture(Unit());
@@ -113,6 +121,8 @@ void Storage::runJournal() {
     ::RateLimiter limiter(10000);
     Unit unit;
 
+    Metric* journalSyncLatency = walSyncLatency_.get();
+
     while (true) {
         limiter.aquire();
 
@@ -130,7 +140,9 @@ void Storage::runJournal() {
             continue;
         }
 
+        Timer syncLatencyTimer = journalSyncLatency->startTimer();
         db_->SyncWAL();
+        syncLatencyTimer.completed();
 
         for (auto& pr : entriesToSync) {
             pr->setValue(unit);

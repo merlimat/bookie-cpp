@@ -1,9 +1,12 @@
 #pragma once
 
+#include <chrono>
 #include <string>
 #include <boost/program_options.hpp>
 
 namespace po = boost::program_options;
+
+using namespace std::chrono;
 
 class BookieConfig {
 public:
@@ -39,6 +42,10 @@ public:
         return fsyncWal_;
     }
 
+    seconds statsReportingInterval() const {
+        return seconds(statsReportingIntervalSeconds_);
+    }
+
 private:
     std::string zkServers_;
     int zkSessionTimeout_;
@@ -49,6 +56,8 @@ private:
     std::string dataDirectory_;
     std::string walDirectory_;
     bool fsyncWal_;
+
+    int statsReportingIntervalSeconds_;
 
     po::options_description options_;
 };

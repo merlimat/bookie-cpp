@@ -1,7 +1,11 @@
+
+#include "Logging.h"
 #include "Metrics.h"
 
 #include <folly/json.h>
 #include <folly/ThreadName.h>
+
+DECLARE_LOG_OBJECT();
 
 static const int64_t BucketSize = 100;
 static const int64_t MinValue = 0;
@@ -81,18 +85,30 @@ MetricPtr MetricsManager::createMetric(const std::string& name) {
 }
 
 void MetricsManager::updateStats() {
-    // Schedule next stats update
-    eventBase_.runAfterDelay(std::bind(&MetricsManager::updateStats, this), milliseconds(statsPeriod_).count());
+    json::serialization_opts opts;
+    opts.pretty_formatting = false;
+    opts.sort_keys = true;
+
 
     std::lock_guard<std::mutex> lock(mutex_);
+
+    LOG_INFO("--- Stats ---");
     for (auto& metric : metrics_) {
         metric.second->updateStats(statsPeriod_);
+
+        LOG_INFO(metric.first << " : " << json::serialize(metric.second->getStats(), opts));
     }
+
+    // Schedule next stats update
+    eventBase_.runAfterDelay(std::bind(&MetricsManager::updateStats, this), milliseconds(statsPeriod_).count());
 }
 
 std::string MetricsManager::getJsonStats(bool formatJson) {
     std::lock_guard<std::mutex> lock(mutex_);
+    return getJsonStatsNoLock(formatJson);
+}
 
+std::string MetricsManager::getJsonStatsNoLock(bool formatJson) {
     dynamic stats = dynamic::object();
     for (auto& metric : metrics_) {
         stats[metric.first] = metric.second->getStats();

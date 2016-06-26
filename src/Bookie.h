@@ -8,6 +8,7 @@
 #include "ZooKeeper.h"
 #include "BookieHandler.h"
 #include "BookieConfig.h"
+#include "Metrics.h"
 #include "Storage.h"
 
 using namespace wangle;
@@ -32,6 +33,7 @@ public:
 
 private:
     const BookieConfig& conf_;
+    MetricsManager metricsManager_;
     ServerBootstrap<BookiePipeline> server_;
 
     ZooKeeper zk_;

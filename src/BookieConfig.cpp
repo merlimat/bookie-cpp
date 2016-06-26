@@ -26,6 +26,9 @@ BookieConfig::BookieConfig() :
     ("walDir,w", po::value<std::string>(&walDirectory_)->default_value("./wal"),
             "Location where to put RocksDB Write-ahead-log") //
     ("fsyncWal,s", po::value<bool>(&fsyncWal_)->default_value(true), "Fsync the WAL before acking the entry") //
+
+    ("statsReportingIntervalSeconds,r", po::value<int>(&statsReportingIntervalSeconds_)->default_value(60),
+            "Interval for stats reporting") //
             //
             ;
 }

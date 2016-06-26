@@ -43,12 +43,14 @@ public:
 
     Timer startTimer();
 
+    void addLatencySample(Clock::duration latency);
+
     const std::string& name() const;
 
 private:
     dynamic getStats();
 
-    void addLatencySample(Clock::duration latency);
+
     void updateStats(seconds statsPeriod);
 
     const std::string name_;
@@ -75,6 +77,7 @@ public:
 
 private:
     void updateStats();
+    std::string getJsonStatsNoLock(bool formatJson);
 
     std::map<std::string, MetricPtr> metrics_;
     seconds statsPeriod_;
