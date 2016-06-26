@@ -24,6 +24,7 @@ class Metric;
  */
 class Timer {
 public:
+    Timer();
     void completed();
 
 private:

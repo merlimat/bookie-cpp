@@ -50,7 +50,7 @@ void BookieHandler::handleAddEntry(Context* ctx, Request request) {
         addEntryLatency_->addLatencySample(Clock::now() - start);
     }) //
     .onError([=](const std::exception& e) {
-        LOG_WARN("Entry persistent at " << ledgerId << ":" << entryId);
+        LOG_WARN("Failed to persist entry at " << ledgerId << ":" << entryId << " : " << e.what());
         Response response {2, BookieOperation::AddEntry, BookieError::IOError, ledgerId, entryId};
 
         write(ctx, std::move(response));

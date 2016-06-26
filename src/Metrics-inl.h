@@ -1,5 +1,10 @@
 #pragma once
 
+inline Timer::Timer() :
+        metric_(nullptr),
+        startTime_() {
+}
+
 inline Timer::Timer(Metric* metric) :
         metric_(metric),
         startTime_(Clock::now()) {

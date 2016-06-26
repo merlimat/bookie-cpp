@@ -28,7 +28,12 @@ private:
 
     typedef std::unique_ptr<Promise<Unit>> PromisePtr;
 
-    MPMCQueue<PromisePtr> journalQueue_;
+    struct JournalEntry {
+        PromisePtr promise;
+        Timer walTimeSpentInQueue;
+    };
+
+    MPMCQueue<JournalEntry> journalQueue_;
 
     const bool fsyncWal_;
     std::thread journalThread_;
@@ -36,5 +41,6 @@ private:
     MetricPtr rocksDbPutLatency_;
     MetricPtr walQueueAddLatency_;
     MetricPtr walSyncLatency_;
+    MetricPtr walQueueLatency_;
 };
 

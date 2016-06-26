@@ -26,6 +26,10 @@ constexpr unsigned long long int operator ""_GB(unsigned long long int gigabytes
     return gigabytes * 1024 * 1024 * 1024;
 }
 
+static inline void relaxCpu() {
+    asm volatile("pause\n": : :"memory");
+}
+
 Storage::Storage(const BookieConfig& conf, MetricsManager& metricsManager) :
         db_(nullptr),
         writeOptions_(),
@@ -33,7 +37,8 @@ Storage::Storage(const BookieConfig& conf, MetricsManager& metricsManager) :
         fsyncWal_(conf.fsyncWal()),
         rocksDbPutLatency_(metricsManager.createMetric("rocksDbPut")),
         walQueueAddLatency_(metricsManager.createMetric("walQueueAdd")),
-        walSyncLatency_(metricsManager.createMetric("walSync")) {
+        walSyncLatency_(metricsManager.createMetric("walSync")),
+        walQueueLatency_(metricsManager.createMetric("walQueueLatency")) {
     if (fsyncWal_) {
         journalThread_ = std::thread(std::bind(&Storage::runJournal, this));
     }
@@ -50,7 +55,8 @@ Storage::Storage(const BookieConfig& conf, MetricsManager& metricsManager) :
     options.target_file_size_base = 1_GB;
     options.max_bytes_for_level_base = 10_GB;
     options.delete_obsolete_files_period_micros = duration_cast<microseconds>(hours(1)).count();
-    options.level_compaction_dynamic_level_bytes = true;
+    options.compaction_readahead_size = 8_MB;
+    options.allow_concurrent_memtable_write = true;
 
     // Keys are always 16 bytes (ledgerId, entryId)
     options.prefix_extractor.reset(NewFixedPrefixTransform(8));
@@ -84,7 +90,8 @@ Storage::Storage(const BookieConfig& conf, MetricsManager& metricsManager) :
 Storage::~Storage() {
     if (fsyncWal_) {
         // Write a null promise to make the journal thread to exit
-        journalQueue_.blockingWrite(nullptr);
+        JournalEntry entry { nullptr, walQueueLatency_->startTimer() };
+        journalQueue_.blockingWrite(std::move(entry));
         journalThread_.join();
     }
     delete db_;
@@ -101,7 +108,8 @@ Future<Unit> Storage::put(const Slice& key, const Slice& value) {
             Future<Unit> future = promise->getFuture();
 
             Timer walQueueAddTimer = walQueueAddLatency_->startTimer();
-            journalQueue_.write(std::move(promise));
+            JournalEntry entry { std::move(promise), walQueueLatency_->startTimer() };
+            journalQueue_.blockingWrite(std::move(entry));
             walQueueAddTimer.completed();
             return future;
         } else {
@@ -132,16 +140,25 @@ void Storage::runJournal() {
         limiter.aquire();
 
         // Collect all items from queue
-        PromisePtr promise;
-        while (journalQueue_.read(promise)) {
-            if (promise.get() == nullptr) {
+        JournalEntry entry;
+        int toSyncCount = 0;
+
+        while (journalQueue_.read(entry)) {
+            if (entry.promise.get() == nullptr) {
                 // Journal is exiting
                 return;
             }
-            entriesToSync.emplace_back(std::move(promise));
+
+            entry.walTimeSpentInQueue.completed();
+            entriesToSync.emplace_back(std::move(entry.promise));
+
+            if (toSyncCount++ == 1000) {
+                break;
+            }
         }
 
         if (entriesToSync.empty()) {
+            relaxCpu();
             continue;
         }
 
