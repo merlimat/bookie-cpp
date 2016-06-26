@@ -35,14 +35,11 @@ Storage::Storage(const BookieConfig& conf, MetricsManager& metricsManager) :
         writeOptions_(),
         journalQueue_(10000),
         fsyncWal_(conf.fsyncWal()),
+        journalThread_(std::bind(&Storage::runJournal, this)),
         rocksDbPutLatency_(metricsManager.createMetric("rocksDbPut")),
-        walQueueAddLatency_(metricsManager.createMetric("walQueueAdd")),
+        addEntryEnqueueLatency_(metricsManager.createMetric("addEntryEnqueueLatency")),
         walSyncLatency_(metricsManager.createMetric("walSync")),
         walQueueLatency_(metricsManager.createMetric("walQueueLatency")) {
-    if (fsyncWal_) {
-        journalThread_ = std::thread(std::bind(&Storage::runJournal, this));
-    }
-
     Options options;
     options.create_if_missing = true;
     options.write_buffer_size = 1_GB;
@@ -88,59 +85,55 @@ Storage::Storage(const BookieConfig& conf, MetricsManager& metricsManager) :
 }
 
 Storage::~Storage() {
-    if (fsyncWal_) {
-        // Write a null promise to make the journal thread to exit
-        JournalEntry entry { nullptr, walQueueLatency_->startTimer() };
-        journalQueue_.blockingWrite(std::move(entry));
-        journalThread_.join();
-    }
+    // Write a null promise to make the journal thread to exit
+    JournalEntry entry { { }, { }, nullptr, walQueueLatency_->startTimer() };
+    journalQueue_.blockingWrite(std::move(entry));
+    journalThread_.join();
     delete db_;
 }
 
-Future<Unit> Storage::put(const Slice& key, const Slice& value) {
-    Timer rocksDbPutTimer = rocksDbPutLatency_->startTimer();
-    Status res = db_->Put(writeOptions_, nullptr, key, value);
-    if (res.ok()) {
+Future<Unit> Storage::put(int64_t ledgerId, int64_t entryId, IOBufPtr data) {
+    PromisePtr promise = make_unique<Promise<Unit>>();
+    Future<Unit> future = promise->getFuture();
 
-        rocksDbPutTimer.completed();
-        if (fsyncWal_) {
-            PromisePtr promise = make_unique<Promise<Unit>>();
-            Future<Unit> future = promise->getFuture();
+    union Key {
+        struct {
+            int64_t ledgerId;
+            int64_t entryId;
+        };
+        char data[0];
+    };
 
-            Timer walQueueAddTimer = walQueueAddLatency_->startTimer();
-            JournalEntry entry { std::move(promise), walQueueLatency_->startTimer() };
-            journalQueue_.blockingWrite(std::move(entry));
-            walQueueAddTimer.completed();
-            return future;
-        } else {
-            return makeFuture(Unit());
-        }
-    } else {
-        LOG_ERROR("Failed to write to db. res: " << res.code());
-        return makeFuture<Unit>(std::runtime_error("Failed to write to db"));
-    }
+    Key key;
+    key.ledgerId = Endian::big(ledgerId);
+    key.entryId = Endian::big(entryId);
+
+    JournalEntry entry { Slice(key.data, sizeof(key)), std::move(data), std::move(promise),
+            walQueueLatency_->startTimer() };
+
+    Slice valueSlice((const char*) data->data(), data->length());
+
+    Timer addEntryEnqueueTimer = addEntryEnqueueLatency_->startTimer();
+    journalQueue_.blockingWrite(std::move(entry));
+    addEntryEnqueueTimer.completed();
+
+    return future;
 }
 
 void Storage::runJournal() {
-    setThreadName("journal");
+    setThreadName("bookie-journal");
 
     std::vector<PromisePtr> entriesToSync;
-
-    ::RateLimiter limiter(10000);
     Unit unit;
-
     Metric* journalSyncLatency = walSyncLatency_.get();
-
     WriteOptions syncOptions;
-    syncOptions.sync = true;
+    syncOptions.sync = fsyncWal_;
+    WriteBatch writeBatch;
 
-    WriteBatch emptySyncBatch;
+    JournalEntry entry;
 
     while (true) {
-        limiter.aquire();
-
         // Collect all items from queue
-        JournalEntry entry;
         int toSyncCount = 0;
 
         while (journalQueue_.read(entry)) {
@@ -151,6 +144,7 @@ void Storage::runJournal() {
 
             entry.walTimeSpentInQueue.completed();
             entriesToSync.emplace_back(std::move(entry.promise));
+            writeBatch.Put(entry.key, Slice((const char*) entry.data->data(), entry.data->length()));
 
             if (toSyncCount++ == 1000) {
                 break;
@@ -163,7 +157,7 @@ void Storage::runJournal() {
         }
 
         Timer syncLatencyTimer = journalSyncLatency->startTimer();
-        db_->Write(syncOptions, &emptySyncBatch);
+        db_->Write(syncOptions, &writeBatch);
         syncLatencyTimer.completed();
 
         for (auto& pr : entriesToSync) {
@@ -171,5 +165,6 @@ void Storage::runJournal() {
         }
 
         entriesToSync.clear();
+        writeBatch.Clear();
     }
 }

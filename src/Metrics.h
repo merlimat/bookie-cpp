@@ -45,6 +45,7 @@ public:
     Timer startTimer();
 
     void addLatencySample(Clock::duration latency);
+    void addValueSample(uint64_t value);
 
     const std::string& name() const;
 

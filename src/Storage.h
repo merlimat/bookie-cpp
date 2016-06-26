@@ -2,6 +2,7 @@
 
 #include <rocksdb/db.h>
 #include <folly/futures/Future.h>
+#include <folly/io/IOBuf.h>
 #include <folly/MPMCQueue.h>
 
 #include <memory>
@@ -12,13 +13,14 @@
 
 using namespace folly;
 using rocksdb::Slice;
+typedef std::unique_ptr<IOBuf> IOBufPtr;
 
 class Storage {
 public:
     Storage(const BookieConfig& conf, MetricsManager& metricsManager);
     ~Storage();
 
-    Future<Unit> put(const Slice& key, const Slice& value);
+    Future<Unit> put(int64_t ledgerId, int64_t entryId, IOBufPtr data);
 
 private:
     void runJournal();
@@ -29,6 +31,8 @@ private:
     typedef std::unique_ptr<Promise<Unit>> PromisePtr;
 
     struct JournalEntry {
+        Slice key;
+        IOBufPtr data;
         PromisePtr promise;
         Timer walTimeSpentInQueue;
     };
@@ -39,7 +43,7 @@ private:
     std::thread journalThread_;
 
     MetricPtr rocksDbPutLatency_;
-    MetricPtr walQueueAddLatency_;
+    MetricPtr addEntryEnqueueLatency_;
     MetricPtr walSyncLatency_;
     MetricPtr walQueueLatency_;
 };

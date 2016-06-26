@@ -25,3 +25,9 @@ inline Timer Metric::startTimer() {
 inline void Metric::addLatencySample(Clock::duration latency) {
     histogram_->addValue(duration_cast<microseconds>(latency).count());
 }
+
+inline void Metric::addValueSample(uint64_t value) {
+    // Multiply value since it's expecting to get a "micros" latency
+    // that will be later presented in millis
+    histogram_->addValue(value * 1000);
+}

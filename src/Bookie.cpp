@@ -38,22 +38,7 @@ BookieHandler Bookie::newHandler() {
 }
 
 Future<Unit> Bookie::addEntry(int64_t ledgerId, int64_t entryId, IOBufPtr data) {
-    union Key {
-        struct {
-            int64_t ledgerId;
-            int64_t entryId;
-        };
-        char data[0];
-    };
-
-    Key key;
-    key.ledgerId = Endian::big(ledgerId);
-    key.entryId = Endian::big(entryId);
-
-    rocksdb::Slice keySlice(key.data, sizeof(key));
-    rocksdb::Slice valueSlice((const char*) data->data(), data->length());
-
-    return storage_.put(keySlice, valueSlice);
+    return storage_.put(ledgerId, entryId, std::move(data));
 }
 
 Future<IOBufPtr> Bookie::getLastEntry(int64_t ledgerId) {
