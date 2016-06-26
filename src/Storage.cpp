@@ -26,10 +26,6 @@ constexpr unsigned long long int operator ""_GB(unsigned long long int gigabytes
     return gigabytes * 1024 * 1024 * 1024;
 }
 
-static inline void relaxCpu() {
-    asm volatile("pause\n": : :"memory");
-}
-
 Storage::Storage(const BookieConfig& conf, MetricsManager& metricsManager) :
         db_(nullptr),
         writeOptions_(),
@@ -131,12 +127,29 @@ void Storage::runJournal() {
     WriteBatch writeBatch;
 
     JournalEntry entry;
+    bool blockForNextEntry = false;
 
     while (true) {
         // Collect all items from queue
         int toSyncCount = 0;
 
-        while (journalQueue_.read(entry)) {
+        while (true) {
+            if (blockForNextEntry) {
+                journalQueue_.blockingRead(entry);
+                blockForNextEntry = false;
+            } else {
+                if (!journalQueue_.read(entry)) {
+                    blockForNextEntry = true;
+                    if (toSyncCount == 0) {
+                        // Block until new entry is available
+                        continue;
+                    } else {
+                        // Queue is drained, write entries to db
+                        break;
+                    }
+                }
+            }
+
             if (entry.promise.get() == nullptr) {
                 // Journal is exiting
                 return;
@@ -152,7 +165,6 @@ void Storage::runJournal() {
         }
 
         if (entriesToSync.empty()) {
-            relaxCpu();
             continue;
         }
 
