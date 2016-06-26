@@ -123,6 +123,11 @@ void Storage::runJournal() {
 
     Metric* journalSyncLatency = walSyncLatency_.get();
 
+    WriteOptions syncOptions;
+    syncOptions.sync = true;
+
+    WriteBatch emptySyncBatch;
+
     while (true) {
         limiter.aquire();
 
@@ -141,7 +146,7 @@ void Storage::runJournal() {
         }
 
         Timer syncLatencyTimer = journalSyncLatency->startTimer();
-        db_->SyncWAL();
+        db_->Write(syncOptions, &emptySyncBatch);
         syncLatencyTimer.completed();
 
         for (auto& pr : entriesToSync) {
